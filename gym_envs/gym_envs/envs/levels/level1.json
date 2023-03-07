@@ -1,0 +1,10 @@
+{
+    "level_setup": [
+        [0,0,0,0,0,1]
+    ],
+    "player": [0,0],
+    "fast_enemies": [],
+    "slow_enemies": [],
+    "gates": [],
+    "triggers": []
+}
