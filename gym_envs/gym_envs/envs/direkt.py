@@ -2,63 +2,101 @@ import gym
 from gym import spaces
 import numpy as np
 import json
+import pygame
 
-# class Direkt_v0(gym.Env):
+class Direkt_v0(gym.Env):
 
-#     def __init__(self, render_mode=None, unity_sim_client=None, size = 1024):
-#         self.unity_sim_client = unity_sim_client
-#         self.size = size
-#         self.observation_space = spaces.Box(0, 100, shape=(7,))
-#         self.action_space = spaces.Discrete(3)
-#         self.render_mode = render_mode
-#         self.window = None
-#         self.clock = None
+    def __init__(self, render_mode=None, level=None):
+        self.level = level
+        self.observation_space = spaces.Box(0, 100, shape=(7,))
+        self.action_space = spaces.Discrete(3)
+        self.render_mode = render_mode
+        self.window = None
+        self.size = 512
+        self.window_size = 512
+        self.clock = None
 
-#         self._action_map = {
-#             0: "f".encode(),
-#             1: "r".encode(),
-#             2: "l".encode(),
-#         }
+        self.level = Level(level)
     
-#     def reset(self, seed=None, options=None):
-#         super().reset(seed=seed)
-#         self.unity_sim_client.send('n'.encode())
-#         data = self.unity_sim_client.recv(self.size)
-#         return self._getobs(data), {}
+    def reset(self, seed=None, options=None):
+        super().reset(seed=seed)
+        return self._getobs({}), {}
 
-#     def _getobs(self, data):
-#         return np.array(data.decode().split(',')).astype(np.float32)
+    def _getobs(self, data):
+        return np.array(data.decode().split(',')).astype(np.float32)
 
+    def reward(self, obs):
+        return -1
 
-#     def reward(self, obs):
-#         if obs[0] == 1:
-#             return 100
-        
-#         if obs[0] == -1:
-#             return -100
-        
-#         return -1
+    def step(self, action):
 
-#     # action -1 means wait for a human move
-#     def step(self, action):
-#         data = None
+        return {}, 5, False, False, {}
 
-#         if action == -1:
-#             data = self.unity_sim_client.recv(self.size)
-#         else:
-#             self.unity_sim_client.send(self._action_map[action])
-#             data = self.unity_sim_client.recv(self.size)
+    def render(self):
+        if self.render_mode == "human":
+            return self._render_frame()
+    
+    def _render_frame(self):
+        if self.window is None and self.render_mode == "human":
+            pygame.init()
+            pygame.display.init()
+            self.window = pygame.display.set_mode((self.window_size, self.window_size))
+        if self.clock is None and self.render_mode == "human":
+            self.clock = pygame.time.Clock()
 
-#         terminated = False
-#         obs = self._getobs(data)
-#         if obs[0] != 0:
-#             terminated = True
-        
-#         r = self.reward(obs)
-#         return obs, r, terminated, False, {}
+        canvas = pygame.Surface((self.window_size, self.window_size))
+        canvas.fill((255, 255, 255))
+        pix_square_size = (
+            self.window_size / self.size
+        )  # The size of a single grid square in pixels
 
-#     def render(self):
-#         pass
+        # # First we draw the target
+        # pygame.draw.rect(
+        #     canvas,
+        #     (255, 0, 0),
+        #     pygame.Rect(
+        #         pix_square_size * self._target_location,
+        #         (pix_square_size, pix_square_size),
+        #     ),
+        # )
+        # # Now we draw the agent
+        # pygame.draw.circle(
+        #     canvas,
+        #     (0, 0, 255),
+        #     (self._agent_location + 0.5) * pix_square_size,
+        #     pix_square_size / 3,
+        # )
+
+        # Finally, add some gridlines
+        for x in range(self.size + 1):
+            pygame.draw.line(
+                canvas,
+                0,
+                (0, pix_square_size * x),
+                (self.window_size, pix_square_size * x),
+                width=3,
+            )
+            pygame.draw.line(
+                canvas,
+                0,
+                (pix_square_size * x, 0),
+                (pix_square_size * x, self.window_size),
+                width=3,
+            )
+
+        if self.render_mode == "human":
+            # The following line copies our drawings from `canvas` to the visible window
+            self.window.blit(canvas, canvas.get_rect())
+            pygame.event.pump()
+            pygame.display.update()
+
+            # We need to ensure that human-rendering occurs at the predefined framerate.
+            # The following line will automatically add a delay to keep the framerate stable.
+            self.clock.tick(60)
+        else:  # rgb_array
+            return np.transpose(
+                np.array(pygame.surfarray.pixels3d(canvas)), axes=(1, 0, 2)
+            )
 
 
 class Level:
@@ -365,6 +403,9 @@ class Trigger:
             gate.rotate(times)
     
 
-    
-l = Level("levels/level1.json")
-l.visualize()
+
+d = Direkt_v0(render_mode="human", level="levels/level1.json")
+while True:
+    d.render()
+# l = Level("levels/level1.json")
+# l.visualize()
