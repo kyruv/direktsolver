@@ -6,6 +6,7 @@ import pygame
 import os
 
 class Direkt_v0(gym.Env):
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 10}
 
     def __init__(self, render_mode=None, level=None):
         self.level = level
@@ -21,15 +22,21 @@ class Direkt_v0(gym.Env):
     
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
+        if self.render_mode == "human":
+            self._render_frame()
+
         return self._getobs({}), {}
 
     def _getobs(self, data):
-        return np.array(data.decode().split(',')).astype(np.float32)
+        return data
 
     def reward(self, obs):
         return -1
 
     def step(self, action):
+        print(self.level.get_valid_actions())
+        if action in self.level.get_valid_actions():
+            self.level.player.move(action)
 
         return {}, 5, False, False, {}
 
@@ -47,43 +54,98 @@ class Direkt_v0(gym.Env):
 
         canvas = pygame.Surface((self.window_size, self.window_size))
         canvas.fill((255, 255, 255))
-        pix_square_size = (
-            self.window_size / self.size
-        )  # The size of a single grid square in pixels
+        
+        # draw walkable tiles
+        for row in self.level.location_objects:
+            for l in row:
+                if l == None:
+                    continue
 
-        # # First we draw the target
-        # pygame.draw.rect(
-        #     canvas,
-        #     (255, 0, 0),
-        #     pygame.Rect(
-        #         pix_square_size * self._target_location,
-        #         (pix_square_size, pix_square_size),
-        #     ),
-        # )
-        # # Now we draw the agent
-        # pygame.draw.circle(
-        #     canvas,
-        #     (0, 0, 255),
-        #     (self._agent_location + 0.5) * pix_square_size,
-        #     pix_square_size / 3,
-        # )
+                r = l.draw_loc[0]
+                c = l.draw_loc[1]
+                color = (200,200,200)
+                if l.is_goal:
+                    color = (255,0,0)
+                pygame.draw.rect(canvas, color, (25*c, 25*r, 23,23))
 
-        # Finally, add some gridlines
-        for x in range(self.size + 1):
-            pygame.draw.line(
-                canvas,
-                0,
-                (0, pix_square_size * x),
-                (self.window_size, pix_square_size * x),
-                width=3,
-            )
-            pygame.draw.line(
-                canvas,
-                0,
-                (pix_square_size * x, 0),
-                (pix_square_size * x, self.window_size),
-                width=3,
-            )
+        # draw gates       
+        for row in self.level.location_objects:
+            for l in row:
+                if l == None:
+                    continue
+
+                r = l.draw_loc[0]
+                c = l.draw_loc[1]
+                if l.gate is not None:
+                    color = (0,0,0)
+                    tl = (25*c+1, 25*r+1)
+                    if l.gate.directions_blocked == 0:
+                        p1 = tl
+                        p2 = tuple(np.add(tl, (23,0)))
+                        p3 = tuple(np.add(tl, (23,23)))
+                    elif l.gate.directions_blocked == 1:
+                        p1 = tuple(np.add(tl, (23,0)))
+                        p2 = tl
+                        p3 = tuple(np.add(tl, (0,23)))
+                    if l.gate.directions_blocked == 2:
+                        p1 = tuple(np.add(tl, (23,23)))
+                        p2 = tuple(np.add(tl, (0,23)))
+                        p3 = tl
+                    elif l.gate.directions_blocked == 3:
+                        p1 = tuple(np.add(tl, (23,0)))
+                        p2 = tuple(np.add(tl, (23,23)))
+                        p3 = tuple(np.add(tl, (0,23)))
+
+                    pygame.draw.lines(canvas, color, False, (p1,p2,p3), 3)
+
+        pygame.draw.circle(canvas, (255,255,255), (25*self.level.player.location.draw_loc[0]+12.5, 25*self.level.player.location.draw_loc[0]+12.5), 10)
+
+        for enemy in self.level.slow_enemies:
+            center = (25*enemy.location.draw_loc[1]+12.5, 25*enemy.location.draw_loc[0]+12.5)
+            if enemy.direction == 0:
+                p1 = tuple(np.add(center, (-10,0)))
+                p2 = tuple(np.add(center, (8,-8)))
+                p3 = tuple(np.add(center, (8,8)))
+            elif enemy.direction == 1:
+                p1 = tuple(np.add(center, (0,-10)))
+                p2 = tuple(np.add(center, (-8,8)))
+                p3 = tuple(np.add(center, (8,8)))
+            if enemy.direction == 2:
+                p1 = tuple(np.add(center, (10,0)))
+                p2 = tuple(np.add(center, (-8,8)))
+                p3 = tuple(np.add(center, (-8,-8)))
+            elif enemy.direction == 3:
+                p1 = tuple(np.add(center, (0,10)))
+                p2 = tuple(np.add(center, (8,-8)))
+                p3 = tuple(np.add(center, (-8,-8)))
+
+            pygame.draw.polygon(canvas, (60,60,60), (p1,p2,p3))
+
+        for enemy in self.level.fast_enemies:
+            center = (25*enemy.location.draw_loc[1]+12.5, 25*enemy.location.draw_loc[0]+12.5)
+            if enemy.direction == 0:
+                p1 = tuple(np.add(center, (-10,0)))
+                p2 = tuple(np.add(center, (8,-8)))
+                p3 = tuple(np.add(center, (8,8)))
+            elif enemy.direction == 1:
+                p1 = tuple(np.add(center, (0,-10)))
+                p2 = tuple(np.add(center, (-8,8)))
+                p3 = tuple(np.add(center, (8,8)))
+            if enemy.direction == 2:
+                p1 = tuple(np.add(center, (10,0)))
+                p2 = tuple(np.add(center, (-8,8)))
+                p3 = tuple(np.add(center, (-8,-8)))
+            elif enemy.direction == 3:
+                p1 = tuple(np.add(center, (0,10)))
+                p2 = tuple(np.add(center, (8,-8)))
+                p3 = tuple(np.add(center, (-8,-8)))
+
+            pygame.draw.polygon(canvas, (120,120,120), (p1,p2,p3))
+
+
+        temp_surf = canvas.copy()
+        canvas.fill((255,255,255))
+        canvas.blit(temp_surf, (50, 50))
 
         if self.render_mode == "human":
             # The following line copies our drawings from `canvas` to the visible window
@@ -118,7 +180,7 @@ class Level:
         for r in range(len(locations)):
             for c in range(len(locations[0])):
                 if locations[r][c] == 0 or locations[r][c] == 1:
-                    location_objects[r][c] = Location(is_goal=locations[r][c] == 1)
+                    location_objects[r][c] = Location(is_goal=locations[r][c] == 1, draw_loc=(r,c))
         
         for r in range(len(locations)):
             for c in range(len(locations[0])):
@@ -155,7 +217,7 @@ class Level:
         
         slow_enemies = data["slow_enemies"]
         for r, c, direction in slow_enemies:
-            enemy = Enemy(direction, location_objects[r][c])
+            enemy = Enemy(is_fast=False, direction=direction, location=location_objects[r][c])
             self.slow_enemies.append(enemy)
         
         fast_enemies = data["fast_enemies"]
@@ -166,6 +228,7 @@ class Level:
         player = data["player"]
         self.player = Player(0, location_objects[0][1])
         self.location_objects = location_objects
+        self.draw_locations = locations
     
     def visualize(self):
         l = len(self.location_objects[0])
@@ -190,8 +253,9 @@ class Level:
     # wait: 5
     def get_valid_actions(self):
         location = self.player.location
-
-        return location.get_valid_directions().extend([4,5])
+        x = location.get_valid_directions()
+        x.extend([4,5])
+        return x
 
     def take_action(self, action):
         if action in [0,1,2,3]:
@@ -300,22 +364,26 @@ class Level:
 
 class Location:
 
-    def __init__(self, north=None, west=None, south=None, east=None, gate=None, exit_trigger_map=None, is_goal=False):
+    def __init__(self, north=None, west=None, south=None, east=None, gate=None, exit_trigger_map=None, is_goal=False, draw_loc=(0,0)):
         self.neighbors = [north, west, south, east]
         self.gate = gate
         self.exit_trigger_map = exit_trigger_map
         self.is_goal = is_goal
+        self.draw_loc = draw_loc
     
     def get_valid_directions(self):
         valid = []
 
         for i in range(len(self.neighbors)):
-            if self.neighbors[i] is not None and i not in self.gate:
+            if self.neighbors[i] is not None:
                 valid.append(i)
         
-        return i
+        return valid
 
     def get_triggered(self, move_direction):
+        if self.exit_trigger_map is None:
+            return None
+        
         if move_direction in self.exit_trigger_map:
             return self.exit_trigger_map[move_direction]
         
@@ -374,12 +442,15 @@ class Player(Agent):
 
     # return the trigger that was triggered or None 
     def move(self, direction):
+        print("move")
+        print(self.location.draw_loc)
         if self.direction == direction:
             triggered = self.location.get_triggered(direction)
         else:
             triggered = None
             self.direction = direction
         self.location = self.location.neighbors[direction]
+        print(self.location.draw_loc)
         return triggered
 
 
@@ -402,11 +473,3 @@ class Trigger:
         if agent.direction in self.trigger_map:
             gate, times = self.trigger_map[agent.direction]
             gate.rotate(times)
-    
-
-
-d = Direkt_v0(render_mode="human", level="levels/level1.json")
-while True:
-    d.render()
-# l = Level("levels/level1.json")
-# l.visualize()
