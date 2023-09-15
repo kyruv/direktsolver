@@ -1,8 +1,9 @@
-import gym
-from gym import spaces
+import gymnasium as gym
+from gymnasium import spaces
 import numpy as np
 import json
 import pygame
+import os
 
 class Direkt_v0(gym.Env):
 
@@ -109,7 +110,7 @@ class Level:
         self.init_level(level_sheet)
     
     def init_level(self, level_sheet):
-        f = open(level_sheet)
+        f = open(os.path.join(os.path.dirname(os.path.realpath(__file__)), level_sheet))
         data = json.load(f)
 
         locations = data["level_setup"]
