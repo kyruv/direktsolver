@@ -136,19 +136,19 @@ class Direkt_v0(gym.Env):
 
         for enemy in self.level.fast_enemies:
             center = (25*enemy.location.draw_loc[1]+12.5, 25*enemy.location.draw_loc[0]+12.5)
-            if enemy.direction == 0:
+            if enemy.direction == 2:
                 p1 = tuple(np.add(center, (-10,0)))
                 p2 = tuple(np.add(center, (8,-8)))
                 p3 = tuple(np.add(center, (8,8)))
-            elif enemy.direction == 1:
+            elif enemy.direction == 3:
                 p1 = tuple(np.add(center, (0,-10)))
                 p2 = tuple(np.add(center, (-8,8)))
                 p3 = tuple(np.add(center, (8,8)))
-            if enemy.direction == 2:
+            if enemy.direction == 0:
                 p1 = tuple(np.add(center, (10,0)))
                 p2 = tuple(np.add(center, (-8,8)))
                 p3 = tuple(np.add(center, (-8,-8)))
-            elif enemy.direction == 3:
+            elif enemy.direction == 1:
                 p1 = tuple(np.add(center, (0,10)))
                 p2 = tuple(np.add(center, (8,-8)))
                 p3 = tuple(np.add(center, (-8,-8)))
@@ -243,7 +243,7 @@ class Level:
         fast_enemies = data["fast_enemies"]
         for r, c, direction in fast_enemies:
             enemy = Enemy(is_fast=True, direction=direction, location=location_objects[r][c])
-            self.slow_enemies.append(enemy)
+            self.fast_enemies.append(enemy)
         
         player = data["player"]
         player_start = location_objects[player[0]][player[1]]
@@ -336,6 +336,8 @@ class Level:
         if self.did_lose():
             return -1
         self.execute_triggers(triggers)
+
+        return 0
     
     # Rotation takes no time to do, so impossible to lose:
     #    Returns 0 if the game is continuing
