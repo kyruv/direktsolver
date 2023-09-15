@@ -10,22 +10,24 @@ class Direkt_v0(gym.Env):
 
     def __init__(self, render_mode=None, level=None):
         self.level = level
-        self.observation_space = spaces.Box(0, 100, shape=(7,))
+        self.observation_space = spaces.Discrete(1)
         self.action_space = spaces.Discrete(3)
         self.render_mode = render_mode
         self.window = None
         self.size = 512
         self.window_size = 512
         self.clock = None
+        self.level_file = level
 
         self.level = Level(level)
     
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
+        self.level.reset()
         if self.render_mode == "human":
             self._render_frame()
 
-        return self._getobs({}), {}
+        return 0, {}
 
     def _getobs(self, data):
         return data
@@ -34,11 +36,21 @@ class Direkt_v0(gym.Env):
         return -1
 
     def step(self, action):
-        print(self.level.get_valid_actions())
-        if action in self.level.get_valid_actions():
-            self.level.player.move(action)
+        terminated = False
+        reward = -10
+        # rotating is 0-time action, only mildly punish it
+        if action == 4:
+            reward = -1
 
-        return {}, 5, False, False, {}
+        if action in self.level.get_valid_actions():
+            result = self.level.take_action(action)
+            terminated = result != 0
+            if result == -1:
+                reward = -1000
+            elif result == 1:
+                reward = 1000
+
+        return 0, reward, terminated, False, {}
 
     def render(self):
         if self.render_mode == "human":
@@ -79,42 +91,43 @@ class Direkt_v0(gym.Env):
                 if l.gate is not None:
                     color = (0,0,0)
                     tl = (25*c+1, 25*r+1)
-                    if l.gate.directions_blocked == 0:
+                    if l.gate.directions_blocked == [3,0]:
                         p1 = tl
                         p2 = tuple(np.add(tl, (23,0)))
                         p3 = tuple(np.add(tl, (23,23)))
-                    elif l.gate.directions_blocked == 1:
+                    elif l.gate.directions_blocked == [2,3]:
                         p1 = tuple(np.add(tl, (23,0)))
                         p2 = tl
                         p3 = tuple(np.add(tl, (0,23)))
-                    if l.gate.directions_blocked == 2:
+                    if l.gate.directions_blocked == [1,2]:
                         p1 = tuple(np.add(tl, (23,23)))
                         p2 = tuple(np.add(tl, (0,23)))
                         p3 = tl
-                    elif l.gate.directions_blocked == 3:
+                    elif l.gate.directions_blocked == [0,1]:
                         p1 = tuple(np.add(tl, (23,0)))
                         p2 = tuple(np.add(tl, (23,23)))
                         p3 = tuple(np.add(tl, (0,23)))
 
                     pygame.draw.lines(canvas, color, False, (p1,p2,p3), 3)
-
-        pygame.draw.circle(canvas, (255,255,255), (25*self.level.player.location.draw_loc[0]+12.5, 25*self.level.player.location.draw_loc[0]+12.5), 10)
+        
+        # print("render " + str(self.level.player.location.draw_loc))
+        pygame.draw.circle(canvas, (255,255,255), (25*self.level.player.location.draw_loc[1]+12.5, 25*self.level.player.location.draw_loc[0]+12.5), 10)
 
         for enemy in self.level.slow_enemies:
             center = (25*enemy.location.draw_loc[1]+12.5, 25*enemy.location.draw_loc[0]+12.5)
-            if enemy.direction == 0:
+            if enemy.direction == 2:
                 p1 = tuple(np.add(center, (-10,0)))
                 p2 = tuple(np.add(center, (8,-8)))
                 p3 = tuple(np.add(center, (8,8)))
-            elif enemy.direction == 1:
+            elif enemy.direction == 3:
                 p1 = tuple(np.add(center, (0,-10)))
                 p2 = tuple(np.add(center, (-8,8)))
                 p3 = tuple(np.add(center, (8,8)))
-            if enemy.direction == 2:
+            if enemy.direction == 0:
                 p1 = tuple(np.add(center, (10,0)))
                 p2 = tuple(np.add(center, (-8,8)))
                 p3 = tuple(np.add(center, (-8,-8)))
-            elif enemy.direction == 3:
+            elif enemy.direction == 1:
                 p1 = tuple(np.add(center, (0,10)))
                 p2 = tuple(np.add(center, (8,-8)))
                 p3 = tuple(np.add(center, (-8,-8)))
@@ -165,12 +178,16 @@ class Direkt_v0(gym.Env):
 class Level:
 
     def __init__(self, level_sheet):
+        self.level_sheet = level_sheet
+        self.reset()
+    
+    def reset(self):
         self.fast_enemies = []
         self.slow_enemies = []
         self.player = None
         self.location_objects = None
-        self.init_level(level_sheet)
-    
+        self.init_level(self.level_sheet)
+
     def init_level(self, level_sheet):
         f = open(os.path.join(os.path.dirname(os.path.realpath(__file__)), level_sheet))
         data = json.load(f)
@@ -179,26 +196,29 @@ class Level:
         location_objects = [[None for i in range(len(locations[0]))] for j in range(len(locations))]
         for r in range(len(locations)):
             for c in range(len(locations[0])):
-                if locations[r][c] == 0 or locations[r][c] == 1:
-                    location_objects[r][c] = Location(is_goal=locations[r][c] == 1, draw_loc=(r,c))
+                if locations[r][c] == 1 or locations[r][c] == 9:
+                    location_objects[r][c] = Location(is_goal=locations[r][c] == 9, draw_loc=(r,c))
         
         for r in range(len(locations)):
             for c in range(len(locations[0])):
-                # can have a north
-                if r - 1 > 0:
-                    location_objects[r][c].neighbors[0] = location_objects[r-1][c]
-                
-                # can have a west
+                if locations[r][c] == 0:
+                    continue
+
+                # can have a east
                 if c + 1 < len(locations[0]):
-                    location_objects[r][c].neighbors[1] = location_objects[r][c + 1]
+                    location_objects[r][c].neighbors[0] = location_objects[r][c + 1]
                 
                 # can have a south
                 if r + 1 < len(locations):
-                    location_objects[r][c].neighbors[2] = location_objects[r+1][c]
+                    location_objects[r][c].neighbors[1] = location_objects[r+1][c]
                 
                 # can have a west
-                if c - 1 > 0:
-                    location_objects[r][c].neighbors[1] = location_objects[r][c - 1]
+                if c - 1 >= 0:
+                    location_objects[r][c].neighbors[2] = location_objects[r][c - 1]
+
+                # can have a north
+                if r - 1 >= 0:
+                    location_objects[r][c].neighbors[3] = location_objects[r-1][c]
         
         gates = data["gates"]
         for r, c, init_orientation in gates:
@@ -226,7 +246,8 @@ class Level:
             self.slow_enemies.append(enemy)
         
         player = data["player"]
-        self.player = Player(0, location_objects[0][1])
+        player_start = location_objects[player[0]][player[1]]
+        self.player = Player(0, player_start)
         self.location_objects = location_objects
         self.draw_locations = locations
     
@@ -254,18 +275,22 @@ class Level:
     def get_valid_actions(self):
         location = self.player.location
         x = location.get_valid_directions()
-        x.extend([4,5])
+
+        if location.gate is not None:
+            x.append(4)
+
+        x.append(5)
         return x
 
     def take_action(self, action):
         if action in [0,1,2,3]:
-            self.action_move(action)
+            return self.action_move(action)
         
         elif action == 4:
-            self.action_rotate()
+            return self.action_rotate()
         
         else:
-            self.action_wait()
+            return self.action_wait()
 
     # Returns:
     #    -1 if you lost
@@ -283,6 +308,8 @@ class Level:
         t = self.player.move(direction)
         if t is not None:
             triggers.append(t)
+        if self.did_lose():
+            return -1
         if self.did_win():
             return 1
 
@@ -364,8 +391,8 @@ class Level:
 
 class Location:
 
-    def __init__(self, north=None, west=None, south=None, east=None, gate=None, exit_trigger_map=None, is_goal=False, draw_loc=(0,0)):
-        self.neighbors = [north, west, south, east]
+    def __init__(self, gate=None, exit_trigger_map=None, is_goal=False, draw_loc=(0,0)):
+        self.neighbors = [None, None, None, None]
         self.gate = gate
         self.exit_trigger_map = exit_trigger_map
         self.is_goal = is_goal
@@ -375,8 +402,18 @@ class Location:
         valid = []
 
         for i in range(len(self.neighbors)):
-            if self.neighbors[i] is not None:
-                valid.append(i)
+            if self.neighbors[i] is None:
+                continue
+
+            dirs_blocked_by_gates = []
+            if self.gate is not None:
+                dirs_blocked_by_gates.extend(self.gate.directions_blocked)
+            
+            if self.neighbors[i].gate is not None:
+                dirs_blocked_by_gates.extend(self.neighbors[i].gate.get_entering_blocked_dirs())
+
+            if i not in dirs_blocked_by_gates:
+                valid.append(i) 
         
         return valid
 
@@ -412,24 +449,35 @@ class Enemy(Agent):
         # 2. left
         # 3. right
         # 4. backwards
+
+        dirs_blocked = []
+        if self.location.gate is not None:
+            dirs_blocked.extend(self.location.gate.directions_blocked)
+
+        for i in range(4):
+            if self.location.neighbors[i] is not None:
+                gate = self.location.neighbors[i].gate
+                if gate is not None and i in gate.get_entering_blocked_dirs():
+                    dirs_blocked.append(i)
         
-        if self.location.neighbors[self.direction] is not None:
+        
+        if self.location.neighbors[self.direction] is not None and self.direction not in dirs_blocked:
             triggered = self.location.get_triggered(self.direction)
             self.location = self.location.neighbors[self.direction]
             return triggered
         
-        elif self.location.neighbors[self.direction+1 % 4] is not None:
-            self.direction = self.direction+1 % 4
+        elif self.location.neighbors[(self.direction+3) % 4] is not None and ((self.direction+3) % 4) not in dirs_blocked:
+            self.direction = (self.direction+3) % 4
             self.location = self.location.neighbors[self.direction]
         
-        elif self.location.neighbors[self.direction+3 % 4] is not None:
-            self.direction = self.direction+3 % 4
+        elif self.location.neighbors[(self.direction+1) % 4] is not None and ((self.direction+1) % 4) not in dirs_blocked:
+            self.direction = (self.direction+1) % 4
             self.location = self.location.neighbors[self.direction]
         
-        else:
-            self.direction = self.direction+2 % 4
+        elif self.location.neighbors[(self.direction+2) % 4] is not None and ((self.direction+2) % 4) not in dirs_blocked:
+            self.direction = (self.direction+2) % 4
             self.location = self.location.neighbors[self.direction]
-        
+                
         # only going forward can trigger a trigger
         return None
 
@@ -442,26 +490,33 @@ class Player(Agent):
 
     # return the trigger that was triggered or None 
     def move(self, direction):
-        print("move")
-        print(self.location.draw_loc)
         if self.direction == direction:
             triggered = self.location.get_triggered(direction)
         else:
             triggered = None
             self.direction = direction
         self.location = self.location.neighbors[direction]
-        print(self.location.draw_loc)
         return triggered
 
 
 
 class Gate:
 
-    def __init__(self, directions_blocked):
-        self.directions_blocked = directions_blocked
+    def __init__(self, init_orientation):
+        if init_orientation == 0:
+            self.directions_blocked = [0,1]
+        if init_orientation == 1:
+            self.directions_blocked = [1,2]
+        if init_orientation == 2:
+            self.directions_blocked = [2,3]
+        if init_orientation == 3:
+            self.directions_blocked = [3,0]
+    
+    def get_entering_blocked_dirs(self):
+        return [(self.directions_blocked[0]+2)%4, (self.directions_blocked[1]+2)%4]
     
     def rotate(self, times=1):
-        self.directions_blocked = [self.directions_blocked[0]+times%4, self.directions_blocked[1]+times%4]
+        self.directions_blocked = [(self.directions_blocked[0]+times)%4, (self.directions_blocked[1]+times)%4]
 
 
 class Trigger:

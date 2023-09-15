@@ -1,32 +1,14 @@
 {
     "level_setup": [
-        [
-            0,
-            0,
-            0,
-            0,
-            0,
-            1
-        ]
+        [ 1, 1, 1, 1, 1, 9 ]
     ],
-    "player": [
-        0,
-        0
-    ],
-    "fast_enemies": [],
+    "player": [ 0, 0 ],
+    "fast_enemies": [ ],
     "slow_enemies": [
-        [
-            0,
-            4,
-            0
-        ]
+        [ 0, 3, 0 ]
     ],
     "gates": [
-        [
-            0,
-            4,
-            1
-        ]
+        [ 0, 4, 0 ]
     ],
-    "triggers": []
+    "triggers": [ ]
 }
