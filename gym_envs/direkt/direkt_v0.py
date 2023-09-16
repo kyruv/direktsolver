@@ -9,17 +9,33 @@ class Direkt_v0(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 10}
 
     def __init__(self, render_mode=None, level=None):
-        self.level = level
-        self.observation_space = spaces.Discrete(1)
-        self.action_space = spaces.Discrete(3)
+        self.level_file = level
+        self.level = Level(level)
+        self.observation_space = spaces.Dict(
+            {
+                # [row, col] location
+                "player": spaces.Box(0, 10, shape=(2,), dtype=int),
+                "gates": spaces.Dict(
+                    {
+                        "num": spaces.Discrete(20),
+                        "rotation": spaces.Box(0,4, shape=(20,), dtype=int)
+                    }
+                ),
+                "enemies": spaces.Dict(
+                    {
+                        "num": spaces.Discrete(20),
+                        "location": spaces.Box(0, 10, shape=(40,), dtype=int),
+                        "rotation": spaces.Box(0, 4, shape=(20,), dtype=int)
+                    }
+                )
+            }
+        )
+        self.action_space = spaces.Discrete(7)
         self.render_mode = render_mode
         self.window = None
         self.size = 512
         self.window_size = 512
         self.clock = None
-        self.level_file = level
-
-        self.level = Level(level)
     
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -27,30 +43,62 @@ class Direkt_v0(gym.Env):
         if self.render_mode == "human":
             self._render_frame()
 
-        return 0, {}
+        return self._getobs(), {}
 
-    def _getobs(self, data):
-        return data
+    def _getobs(self):
+        gates = [0] * 20
+        for i, g in enumerate(self.level.gates):
+            gates[i] = g.directions_blocked[0]
+        
+        e_loc = [0] * 40
+        e_rot = [0] * 20
+        for i, e in enumerate(self.level.slow_enemies):
+            e_loc[2*i] = e.location.draw_loc[0]
+            e_loc[2*i+1] = e.location.draw_loc[1]
+            e_rot[i] = e.direction
+        num_slow = len(self.level.slow_enemies)
+        for i, e in enumerate(self.level.fast_enemies):
+            i_offset = i + num_slow
+            e_loc[2*i_offset] = e.location.draw_loc[0]
+            e_loc[2*i_offset+1] = e.location.draw_loc[1]
+            e_rot[i_offset] = e.direction
+        
+        obs = {
+            "player": np.asarray(self.level.player.location.draw_loc),
+            "gates":
+                {
+                    "num": self.level.num_gates,
+                    "rotation": np.asarray(gates)
+                },
+            "enemies":
+                {
+                    "num": (len(self.level.slow_enemies) + len(self.level.fast_enemies)),
+                    "location": np.asarray(e_loc),
+                    "rotation": np.asarray(e_rot)
+                }
+            }
+
+        return obs
 
     def reward(self, obs):
         return -1
+    
+    def get_valid_actions(self):
+        return self.level.get_valid_actions()
 
     def step(self, action):
         terminated = False
-        reward = -10
-        # rotating is 0-time action, only mildly punish it
-        if action == 4:
-            reward = -1
+        reward = -1
 
         if action in self.level.get_valid_actions():
             result = self.level.take_action(action)
             terminated = result != 0
             if result == -1:
-                reward = -1000
+                reward = -100
             elif result == 1:
-                reward = 1000
+                reward = 200
 
-        return 0, reward, terminated, False, {}
+        return self._getobs(), reward, terminated, False, {}
 
     def render(self):
         if self.render_mode == "human":
@@ -184,6 +232,8 @@ class Level:
     def reset(self):
         self.fast_enemies = []
         self.slow_enemies = []
+        self.num_gates = 0
+        self.gates = []
         self.player = None
         self.location_objects = None
         self.init_level(self.level_sheet)
@@ -222,8 +272,10 @@ class Level:
         
         gates = data["gates"]
         for r, c, init_orientation in gates:
+            self.num_gates += 1
             gate = Gate(init_orientation)
             location_objects[r][c].gate = gate
+            self.gates.append(gate)
         
         triggers = data["triggers"]
         for r, c, gr, gc, exit_dir_that_rotates_once in triggers:
@@ -270,7 +322,7 @@ class Level:
     # returns list of valid actions 
     #
     # move: direction [0,1,2,3]
-    # rotate: 4
+    # rotate: 4,6
     # wait: 5
     def get_valid_actions(self):
         location = self.player.location
@@ -278,6 +330,7 @@ class Level:
 
         if location.gate is not None:
             x.append(4)
+            x.append(6)
 
         x.append(5)
         return x
@@ -288,6 +341,9 @@ class Level:
         
         elif action == 4:
             return self.action_rotate()
+
+        elif action == 6:
+            return self.action_rotate(counter=True)
         
         else:
             return self.action_wait()
@@ -341,8 +397,11 @@ class Level:
     
     # Rotation takes no time to do, so impossible to lose:
     #    Returns 0 if the game is continuing
-    def action_rotate(self):
-        self.player.location.gate.rotate()
+    def action_rotate(self, counter=False):
+        times = 3
+        if not counter:
+            times = 1
+        self.player.location.gate.rotate(times)
         return 0
     
 
@@ -497,6 +556,7 @@ class Player(Agent):
         else:
             triggered = None
             self.direction = direction
+        old_draw_loc = self.location.draw_loc
         self.location = self.location.neighbors[direction]
         return triggered
 

@@ -31,8 +31,10 @@ class Runner:
                             _, r, terminated, _, _ = self.env.step(2)
                         if event.key == pygame.K_UP:
                             _, r, terminated, _, _ = self.env.step(3)
-                        if event.key == pygame.K_SPACE:
+                        if event.key == pygame.K_x:
                             _, r, terminated, _, _ = self.env.step(4)
+                        if event.key == pygame.K_z:
+                            _, r, terminated, _, _ = self.env.step(6)
                         if event.key == pygame.K_w:
                             _, r, terminated, _, _ = self.env.step(5)
                         
