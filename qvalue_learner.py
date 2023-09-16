@@ -53,7 +53,7 @@ class Runner:
     def train(self):
         # training hyper params
         alpha = .01
-        bias_best = 10
+        bias_best = 0
         num_episodes = 10000
         gamma = .95
         max_epsilon = .25
