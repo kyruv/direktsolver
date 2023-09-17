@@ -53,10 +53,10 @@ class Runner:
     def train(self):
         # training hyper params
         alpha = .01
-        bias_best = 0
-        num_episodes = 10000
+        bias_best = 1
+        num_episodes = 50000000
         gamma = .95
-        max_epsilon = .25
+        max_epsilon = .8
         max_episode_steps = 100
 
         best_found_reward = -math.inf
@@ -132,7 +132,7 @@ class Runner:
                 updated_q_value = old_q_value + bias_best * alpha * (best_history[1] + gamma * best_score - old_q_value)
                 self._q_table_update(s, a, updated_q_value)
 
-            if episode % 10 == 0 or episode == num_episodes:
+            if episode % 1000 == 0 or episode == num_episodes - 1:
                 np.save(self.model_path, self.q_table)
 
                 with open(f'{self.model_path}_progress.csv','a') as fd:
@@ -201,4 +201,4 @@ class Runner:
         return best_action, best_score
 
 
-Runner(level="level4", load=False, overwrite=True).train()
+Runner(level="level19", load=False).train()

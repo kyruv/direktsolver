@@ -180,7 +180,28 @@ class Direkt_v0(gym.Env):
                 p2 = tuple(np.add(center, (8,-8)))
                 p3 = tuple(np.add(center, (-8,-8)))
 
-            pygame.draw.polygon(canvas, (60,60,60), (p1,p2,p3))
+            pygame.draw.polygon(canvas, (30,30,30), (p1,p2,p3))
+        
+        for enemy in self.level.normal_enemies:
+            center = (25*enemy.location.draw_loc[1]+12.5, 25*enemy.location.draw_loc[0]+12.5)
+            if enemy.direction == 2:
+                p1 = tuple(np.add(center, (-10,0)))
+                p2 = tuple(np.add(center, (8,-8)))
+                p3 = tuple(np.add(center, (8,8)))
+            elif enemy.direction == 3:
+                p1 = tuple(np.add(center, (0,-10)))
+                p2 = tuple(np.add(center, (-8,8)))
+                p3 = tuple(np.add(center, (8,8)))
+            if enemy.direction == 0:
+                p1 = tuple(np.add(center, (10,0)))
+                p2 = tuple(np.add(center, (-8,8)))
+                p3 = tuple(np.add(center, (-8,-8)))
+            elif enemy.direction == 1:
+                p1 = tuple(np.add(center, (0,10)))
+                p2 = tuple(np.add(center, (8,-8)))
+                p3 = tuple(np.add(center, (-8,-8)))
+
+            pygame.draw.polygon(canvas, (90,90,90), (p1,p2,p3))
 
         for enemy in self.level.fast_enemies:
             center = (25*enemy.location.draw_loc[1]+12.5, 25*enemy.location.draw_loc[0]+12.5)
@@ -201,7 +222,7 @@ class Direkt_v0(gym.Env):
                 p2 = tuple(np.add(center, (8,-8)))
                 p3 = tuple(np.add(center, (-8,-8)))
 
-            pygame.draw.polygon(canvas, (120,120,120), (p1,p2,p3))
+            pygame.draw.polygon(canvas, (150,150,150), (p1,p2,p3))
 
 
         temp_surf = canvas.copy()
@@ -232,6 +253,7 @@ class Level:
     def reset(self):
         self.fast_enemies = []
         self.slow_enemies = []
+        self.normal_enemies = []
         self.num_gates = 0
         self.gates = []
         self.player = None
@@ -292,6 +314,11 @@ class Level:
             enemy = Enemy(is_fast=False, direction=direction, location=location_objects[r][c])
             self.slow_enemies.append(enemy)
         
+        normal_enemies = data["normal_enemies"]
+        for r, c, direction in normal_enemies:
+            enemy = Enemy(is_fast=False, direction=direction, location=location_objects[r][c])
+            self.normal_enemies.append(enemy)
+        
         fast_enemies = data["fast_enemies"]
         for r, c, direction in fast_enemies:
             enemy = Enemy(is_fast=True, direction=direction, location=location_objects[r][c])
@@ -302,6 +329,7 @@ class Level:
         self.player = Player(0, player_start)
         self.location_objects = location_objects
         self.draw_locations = locations
+        self.game_tick = 0
     
     def visualize(self):
         l = len(self.location_objects[0])
@@ -353,6 +381,8 @@ class Level:
     #    0 if the game is continuing
     #    1 if you won
     def action_move(self, direction):
+        self.game_tick += 1
+
         # fast enemies
         triggers = self.move_fast_enemies()
         if self.did_lose():
@@ -373,6 +403,12 @@ class Level:
         triggers.extend(self.move_all_enemies())
         if self.did_lose():
             return -1
+
+        if self.game_tick % 2 == 0:
+            triggers.extend(self.move_slow_enemies())
+            if self.did_lose():
+                return -1
+        
         self.execute_triggers(triggers)
 
         return 0
@@ -381,18 +417,26 @@ class Level:
     #    -1 if you lost
     #    0 if the game is continuing
     def action_wait(self):
+        self.game_tick += 1
+
         # fast enemies
         triggers = self.move_fast_enemies()
         if self.did_lose():
             return -1
         self.execute_triggers(triggers)
 
-        # all enemies
+        # normal enemies + fast enemies
         triggers.extend(self.move_all_enemies())
         if self.did_lose():
             return -1
-        self.execute_triggers(triggers)
 
+        # slow enemies
+        if self.game_tick % 2 == 0:
+            triggers.extend(self.move_slow_enemies())
+            if self.did_lose():
+                return -1
+
+        self.execute_triggers(triggers)
         return 0
     
     # Rotation takes no time to do, so impossible to lose:
@@ -416,6 +460,15 @@ class Level:
                 triggers.append(t)
         return triggers
     
+    def move_slow_enemies(self):
+        triggers = []
+        for enemy in self.slow_enemies:
+            t = enemy.move()
+            if t is not None:
+                triggers.append(t)
+        return triggers
+    
+    # moves normal + fast enemies
     def move_all_enemies(self):
         triggers = []
         for enemy in self.fast_enemies:
@@ -423,7 +476,7 @@ class Level:
             if t is not None:
                 triggers.append(t)
         
-        for enemy in self.slow_enemies:
+        for enemy in self.normal_enemies:
             t = enemy.move()
             if t is not None:
                 triggers.append(t)
@@ -436,6 +489,10 @@ class Level:
 
     def did_lose(self):
         for enemy in self.fast_enemies:
+            if enemy.location == self.player.location:
+                return True
+        
+        for enemy in self.normal_enemies:
             if enemy.location == self.player.location:
                 return True
         
