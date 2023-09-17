@@ -138,7 +138,24 @@ class Direkt_v0(gym.Env):
                 c = l.draw_loc[1]
                 if l.gate is not None:
                     color = (0,0,0)
+                    
+                    if l.gate.is_straight:
+                        tl = (25*c, 25*r)
+                        if l.gate.directions_blocked == [3,1] or l.gate.directions_blocked == [1,3]:
+                            p1 = tl
+                            p2 = tuple(np.add(tl, (23,0)))
+                            p3 = tuple(np.add(tl, (23,23)))
+                            p4 = tuple(np.add(tl, (0,23)))
+                        elif l.gate.directions_blocked == [2,0] or l.gate.directions_blocked == [0,2]:
+                            p1 = tl
+                            p2 = tuple(np.add(tl, (0,23)))
+                            p3 = tuple(np.add(tl, (23,23)))
+                            p4 = tuple(np.add(tl, (23,0)))
+                        pygame.draw.lines(canvas, color, False, (p1,p2), 3)
+                        pygame.draw.lines(canvas, color, False, (p3,p4), 3)
+                        continue
                     tl = (25*c+1, 25*r+1)
+                    # normal L gate
                     if l.gate.directions_blocked == [3,0]:
                         p1 = tl
                         p2 = tuple(np.add(tl, (23,0)))
@@ -147,7 +164,7 @@ class Direkt_v0(gym.Env):
                         p1 = tuple(np.add(tl, (23,0)))
                         p2 = tl
                         p3 = tuple(np.add(tl, (0,23)))
-                    if l.gate.directions_blocked == [1,2]:
+                    elif l.gate.directions_blocked == [1,2]:
                         p1 = tuple(np.add(tl, (23,23)))
                         p2 = tuple(np.add(tl, (0,23)))
                         p3 = tl
@@ -155,7 +172,6 @@ class Direkt_v0(gym.Env):
                         p1 = tuple(np.add(tl, (23,0)))
                         p2 = tuple(np.add(tl, (23,23)))
                         p3 = tuple(np.add(tl, (0,23)))
-
                     pygame.draw.lines(canvas, color, False, (p1,p2,p3), 3)
         
         # print("render " + str(self.level.player.location.draw_loc))
@@ -296,6 +312,13 @@ class Level:
         for r, c, init_orientation in gates:
             self.num_gates += 1
             gate = Gate(init_orientation)
+            location_objects[r][c].gate = gate
+            self.gates.append(gate)
+        
+        s_gates = data["straight_gates"]
+        for r, c, init_orientation in s_gates:
+            self.num_gates += 1
+            gate = Gate(init_orientation, is_straight=True)
             location_objects[r][c].gate = gate
             self.gates.append(gate)
         
@@ -621,15 +644,26 @@ class Player(Agent):
 
 class Gate:
 
-    def __init__(self, init_orientation):
-        if init_orientation == 0:
-            self.directions_blocked = [0,1]
-        if init_orientation == 1:
-            self.directions_blocked = [1,2]
-        if init_orientation == 2:
-            self.directions_blocked = [2,3]
-        if init_orientation == 3:
-            self.directions_blocked = [3,0]
+    def __init__(self, init_orientation, is_straight=False):
+        self.is_straight = is_straight
+        if is_straight:
+            if init_orientation == 0:
+                self.directions_blocked = [0,2]
+            if init_orientation == 1:
+                self.directions_blocked = [1,3]
+            if init_orientation == 2:
+                self.directions_blocked = [2,0]
+            if init_orientation == 3:
+                self.directions_blocked = [3,1]
+        else:
+            if init_orientation == 0:
+                self.directions_blocked = [0,1]
+            if init_orientation == 1:
+                self.directions_blocked = [1,2]
+            if init_orientation == 2:
+                self.directions_blocked = [2,3]
+            if init_orientation == 3:
+                self.directions_blocked = [3,0]
     
     def get_entering_blocked_dirs(self):
         return [(self.directions_blocked[0]+2)%4, (self.directions_blocked[1]+2)%4]

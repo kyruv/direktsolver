@@ -5,7 +5,7 @@ import pygame
 class Runner:
 
     def __init__(self):
-        self.env = self.env = gym.make("direkt-v0", render_mode="human", level="levels/level19.json")
+        self.env = self.env = gym.make("direkt-v0", render_mode="human", level="levels/level20.json")
         self.env.reset()
 
     def spin(self):

@@ -10,5 +10,6 @@
     "gates": [
         [ 0, 4, 0 ]
     ],
+    "straight_gates": [ ],
     "triggers": [ ]
 }
